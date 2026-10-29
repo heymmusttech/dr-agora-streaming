@@ -108,11 +108,11 @@ export function EmbedPlayer({
   }, [])
 
   /** The server counts the reaction (capped per person); the totals come back with the status. */
-  const sendReaction = useCallback(async (kind: ReactionKind) => {
+  const sendReaction = useCallback(async (counts: Partial<Record<ReactionKind, number>>) => {
     await fetch('/api/stream/react', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind, ticket: ticketRef.current }),
+      body: JSON.stringify({ counts, ticket: ticketRef.current }),
       cache: 'no-store',
     })
   }, [])
@@ -131,7 +131,7 @@ export function EmbedPlayer({
     title: status.title,
     aspectRatio: stream.participants.length > 1 ? 'landscape' : stream.orientation,
     hosts: stream.participants.length,
-    viewers: chat.viewers,
+    viewers: status.viewers ?? 0,
     muted: stream.muted,
     volume: stream.volume,
     signedIn: Boolean(chat.me?.canPost),
@@ -205,7 +205,7 @@ export function EmbedPlayer({
   /** Viewers + reactions as one aligned row (beside the chat) or column (over the video). */
   const counts = (tone: 'dark' | 'light') => (
     <div className={cn('flex gap-1.5', split ? 'flex-row items-center' : 'flex-col items-end')}>
-      <ViewerCount tone={tone} count={chat.viewersKnown ? chat.viewers : null} className={cn(!split && 'h-auto min-w-12 flex-col gap-0 px-2 py-1.5')} />
+      <ViewerCount tone={tone} count={status.viewers} className={cn(!split && 'h-auto min-w-12 flex-col gap-0 px-2 py-1.5')} />
       <ReactionBar tone={tone} totals={totals} canReact={canReact} onReact={react} onBlocked={requestSignIn} vertical={!split} />
     </div>
   )

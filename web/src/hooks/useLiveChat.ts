@@ -25,6 +25,7 @@ export function useLiveChat({
   adminUserId = null,
   persist,
   sendReaction,
+  reportViewers,
 }: {
   enabled: boolean
   sessionKey: string
@@ -33,6 +34,8 @@ export function useLiveChat({
   persist?: ChatOptions['persist']
   /** Counts a reaction on the server (the only counter; totals come back with the status). */
   sendReaction?: ChatOptions['sendReaction']
+  /** Host only: report the viewer count the leader measures. */
+  reportViewers?: ChatOptions['reportViewers']
 }) {
   const [state, setState] = useState<ChatState>(INITIAL_CHAT)
   const [particles, setParticles] = useState<FloatingReaction[]>([])
@@ -45,6 +48,8 @@ export function useLiveChat({
   adminRef.current = adminUserId
   const reactRef = useRef(sendReaction)
   reactRef.current = sendReaction
+  const viewersRef = useRef(reportViewers)
+  viewersRef.current = reportViewers
   const nextId = useRef(0)
 
   const onReaction = useCallback((kind: ReactionKind) => {
@@ -61,7 +66,8 @@ export function useLiveChat({
     const session = new LiveChatSession((next) => current && setState(next), (conn) => tokenRef.current(conn), {
       adminUserId: adminRef.current,
       persist: persistRef.current ? (snapshot) => persistRef.current!(snapshot) : undefined,
-      sendReaction: (kind) => reactRef.current?.(kind) ?? Promise.resolve(),
+      sendReaction: (counts) => reactRef.current?.(counts) ?? Promise.resolve(),
+      reportViewers: viewersRef.current ? (count) => viewersRef.current?.(count) ?? Promise.resolve() : undefined,
       onReaction,
     })
     sessionRef.current = session

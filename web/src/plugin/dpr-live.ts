@@ -83,10 +83,10 @@ interface PlayerState {
 }
 
 const SOURCE = 'dpr-live'
-const DISMISS_KEY = 'dpr-live-dismissed'
 // Tickets live ≤ 15 min (sites use 10): refresh well before, so a renewal never meets an expired one.
 const TICKET_REFRESH_MS = 8 * 60 * 1000
 const TICKET_RETRY_MS = [2_000, 5_000, 15_000]
+const OFFLINE_POLL_MS = 10_000
 
 const ICON = {
   expand: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/></svg>',
@@ -182,12 +182,16 @@ class Widget {
     if (this.destroyed) return
     if (this.pollTimer) clearTimeout(this.pollTimer)
     try {
-      const response = await fetch(`${this.options.origin}/api/stream/status`, { cache: 'no-store', credentials: 'omit' })
+      // A CDN may serve this from a 2-second cache (Cache-Control on the route): fine for a pill.
+      const response = await fetch(`${this.options.origin}/api/stream/status`, { credentials: 'omit' })
       if (response.ok) this.applyStatus((await response.json()) as StreamStatus)
     } catch {
       // Offline or blocked by CSP: try again later.
     }
-    if (!this.destroyed) this.pollTimer = setTimeout(() => void this.poll(), this.options.pollMs)
+    // Nothing live: check less often (the pill can appear a few seconds later; no one is waiting
+    // in a player). Live: the configured interval.
+    const wait = this.status?.isLive ? this.options.pollMs : Math.max(this.options.pollMs, OFFLINE_POLL_MS)
+    if (!this.destroyed) this.pollTimer = setTimeout(() => void this.poll(), wait)
   }
 
   private applyStatus(next: StreamStatus) {
@@ -201,24 +205,16 @@ class Widget {
     if (!next.isLive || (previous?.sessionId && previous.sessionId !== next.sessionId)) {
       if (this.joined) this.leave(false)
     }
-    if (next.isLive && this.options.autoOpen && !this.joined && !this.dismissedFor(next.sessionId)) this.open()
+    if (next.isLive && this.options.autoOpen && !this.joined) this.open()
     this.render()
   }
 
   /* ── dock state ── */
 
-  private dismissedFor(sessionId: string | null): boolean {
-    try {
-      return Boolean(sessionId) && sessionStorage.getItem(DISMISS_KEY) === sessionId
-    } catch {
-      return false
-    }
-  }
-
   private computeMode(): Mode {
     if (!this.status?.isLive) return 'hidden'
     if (this.joined) return this.minimized ? 'minimized' : 'player'
-    return this.dismissedFor(this.status.sessionId) ? 'hidden' : 'pill'
+    return 'pill'
   }
 
   /** Join: the only action that connects the visitor to the video. */
@@ -226,11 +222,6 @@ class Widget {
     if (!this.status?.isLive) return
     this.joined = true
     this.minimized = false
-    try {
-      sessionStorage.removeItem(DISMISS_KEY)
-    } catch {
-      // private mode
-    }
     this.render()
     this.emit('open')
     void this.refreshViewer()
@@ -273,16 +264,6 @@ class Widget {
     if (!this.joined) return
     this.expanded = on
     if (on) this.minimized = false
-    this.render()
-  }
-
-  /** ✕ on the pill: hidden until the next session. */
-  dismiss() {
-    try {
-      if (this.status?.sessionId) sessionStorage.setItem(DISMISS_KEY, this.status.sessionId)
-    } catch {
-      // private mode
-    }
     this.render()
   }
 
@@ -434,25 +415,39 @@ class Widget {
     }
     const title = escapeHtml(this.status?.title || 'Live stream now')
 
-    // Pills are cheap to rebuild; the player window is kept (its iframe must not reload).
-    root.querySelectorAll('.pill').forEach((node) => node.remove())
+    // Rebuild the pill only when what it shows changes: every status poll calls render(), and a
+    // fresh pill replays its entrance animation (the widget flashed every 5 s). The player window
+    // is kept too (its iframe must not reload).
+    const pillKey = mode === 'pill' || mode === 'minimized' ? `${mode}|${title}` : ''
+    const currentPill = root.querySelector('.pill') as HTMLElement | null
+    if (currentPill?.dataset.key !== pillKey) {
+      currentPill?.remove()
+      this.renderPill(root, mode, title, pillKey)
+    }
+    this.renderWindow(root, mode, changed)
+  }
+
+  private renderPill(root: HTMLElement, mode: Mode, title: string, key: string) {
     if (mode === 'pill') {
       const pill = document.createElement('div')
       pill.className = 'pill'
+      pill.dataset.key = key
       pill.setAttribute('role', 'region')
       pill.setAttribute('aria-label', 'Live stream')
       pill.innerHTML = `<span class="dot"></span><span class="live-label">Live</span><span class="pill-title" aria-live="polite">${title}</span>
-        <button type="button" class="join" data-act="join">${ICON.play} Join live</button>
-        <button type="button" class="icon-btn" data-act="dismiss" aria-label="Hide the live stream for this session">${ICON.x}</button>`
+        <button type="button" class="join" data-act="join">${ICON.play} Join live</button>`
       root.prepend(pill)
     } else if (mode === 'minimized') {
       const pill = document.createElement('div')
       pill.className = 'pill'
+      pill.dataset.key = key
       pill.innerHTML = `<button type="button" class="restore" data-act="restore" aria-label="Back to the live stream"><span class="dot"></span><span class="live-label">Live</span><span class="pill-title">— Back to stream</span></button>
         <button type="button" class="icon-btn" data-act="close" aria-label="Close the live stream">${ICON.x}</button>`
       root.prepend(pill)
     }
+  }
 
+  private renderWindow(root: HTMLElement, mode: Mode, changed: boolean) {
     let win = root.querySelector('.window') as HTMLElement | null
     if (this.joined) {
       if (!win) win = this.createWindow(root)
@@ -537,8 +532,6 @@ class Widget {
     switch (action) {
       case 'join':
         return this.open()
-      case 'dismiss':
-        return this.dismiss()
       case 'restore':
         return this.restore()
       case 'minimize':

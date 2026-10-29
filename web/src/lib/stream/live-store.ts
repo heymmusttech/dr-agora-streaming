@@ -7,9 +7,9 @@
  * `NEXT_PUBLIC_LIVESTREAM_TRANSPORT=poll`.
  *
  * Rules: last write wins by `serverTime`; a feed drop never ends playback — only a status with
- * `isLive: false` does. (The visitor's Join / minimise / dismiss state lives in the plugin.)
+ * `isLive: false` does. (The visitor's Join / minimise state lives in the plugin.)
  */
-import type { AppLiveStreamStatus, LiveStreamFeedStatus } from './types'
+import type { AppLiveStreamStatus, LiveCounts, LiveStreamFeedStatus } from './types'
 
 const IDLE_CLOSE_MS = 10_000
 const POLL_MS = Math.max(1_000, Number(process.env.NEXT_PUBLIC_LIVESTREAM_POLL_MS) || 5_000)
@@ -33,6 +33,13 @@ function setFeedStatus(next: LiveStreamFeedStatus) {
 export function applyLiveStreamStatus(next: AppLiveStreamStatus): void {
   if (status && status.serverTime > next.serverTime) return
   status = next
+  notify()
+}
+
+/** Reactions / viewers for the current session; ignored for another session or an older value. */
+export function applyLiveCounts(counts: LiveCounts): void {
+  if (!status || status.sessionId !== counts.sessionId || status.serverTime > counts.serverTime) return
+  status = { ...status, reactions: counts.reactions, viewers: counts.viewers, serverTime: counts.serverTime }
   notify()
 }
 
@@ -99,6 +106,10 @@ function open() {
   next.addEventListener('app-livestream-status', (event) => {
     applyLiveStreamStatus(JSON.parse((event as MessageEvent<string>).data) as AppLiveStreamStatus)
     setFeedStatus('connected')
+  })
+  // The frequent, small part (reactions, viewers): merged into the current status.
+  next.addEventListener('app-livestream-counts', (event) => {
+    applyLiveCounts(JSON.parse((event as MessageEvent<string>).data) as LiveCounts)
   })
   next.onopen = () => setFeedStatus('connected')
   // EventSource retries by itself; the first event after reconnect re-syncs the store.

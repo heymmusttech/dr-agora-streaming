@@ -57,8 +57,12 @@ export const fetchPublisherTokens = () => hostFetch<PublisherTokens>('/api/token
 export const fetchHostRtmToken = (conn?: string) =>
   hostFetch<{ rtm: RtmTokenResponse; role: HostRole }>('/api/token/host', { body: { kind: 'listener', conn } })
 
-/** Counts the host's own reaction on the server. */
-export const sendHostReaction = (kind: ReactionKind) => hostFetch('/api/stream/react', { body: { kind } })
+/** Counts the host's own reactions on the server (a batch: `{ love: 2 }`). */
+export const sendHostReaction = (counts: Partial<Record<ReactionKind, number>>) =>
+  hostFetch('/api/stream/react', { body: { counts } })
+
+/** The leading host reports how many people watch. */
+export const reportViewerCount = (count: number) => hostFetch('/api/stream/viewers', { body: { count } })
 
 export const saveSessionSnapshot = (snapshot: Omit<SessionSnapshot, 'updatedAt' | 'sessionId'>) =>
   hostFetch<SessionSnapshot>('/api/stream/snapshot', { method: 'PUT', body: snapshot })

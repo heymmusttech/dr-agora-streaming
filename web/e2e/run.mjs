@@ -212,6 +212,10 @@ try {
     const results = await Promise.all(Array.from({ length: 12 }, () => fetch(`${BASE}/api/stream/react`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'smile', ticket }) }).then((r) => r.json())))
     const counted = results.filter((r) => r.counted).length
     if (counted !== 5) throw new Error(`burst counted ${counted}, expected 5`)
+    // A device's batch counts within the same per-person cap.
+    const batch = await (await fetch(`${BASE}/api/stream/react`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ counts: { like: 9 }, ticket }) })).json()
+    const batchGranted = Object.values(batch.granted ?? {}).reduce((sum, n) => sum + n, 0)
+    if (batchGranted > 5) throw new Error(`a batch counted ${batchGranted}, cap is 5 per second`)
     const guestReact = await fetch(`${BASE}/api/stream/react`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'love' }) })
     if (guestReact.status !== 401) throw new Error(`guest reaction should be refused, got ${guestReact.status}`)
     await alice.getByRole('group', { name: 'Live stats' }).getByRole('button', { name: /^Smile \(5\)/ }).waitFor({ timeout: TIMEOUT })
@@ -221,6 +225,10 @@ try {
 
   await step('viewer count reaches 2 on the host', async () => {
     await alice.waitForFunction(() => Number(document.querySelector('[data-testid="viewer-count"]')?.textContent) >= 2, null, { timeout: TIMEOUT })
+    // Viewers get the host's measurement through the status (they no longer ask Agora themselves).
+    await player(guest).getByLabel(/^[2-9]\d* watching$/).first().waitFor({ timeout: TIMEOUT })
+    const status = await (await fetch(`${BASE}/api/stream/status`)).json()
+    if (!(status.viewers >= 2)) throw new Error(`status.viewers = ${status.viewers}`)
   })
 
   await step('co-host Bob joins on camera → viewers see 2 tiles', async () => {

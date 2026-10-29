@@ -125,3 +125,30 @@ Real Keycloak sign-in has to be checked by hand with a dr / drg account at `http
 - **RTM limits:** RTM is client-side (as chosen). Chat sender ids are trusted, but a signed-in user
   could still send crafted reaction messages. The leader caps each user at 5/s, so the effect is
   bounded. Mutes are enforced by every receiver, not by Agora.
+
+## Scale (thousands of viewers)
+
+- **Plugin status poll:** `GET /api/stream/status` is cacheable for 2 s by a CDN
+  (`s-maxage=2, stale-while-revalidate=5`). Put CloudFront in front, and the origin answers about
+  once per 2 s however many sites poll. The plugin polls every 5 s while live, 10 s otherwise.
+- **Reactions:** each device sends one batch per second (`{ counts: { love: 3 } }`) to the server
+  and one chat message to Agora, never one per tap. The server caps each person at 5 per second.
+- **Viewer count:** measured once by the leading host (Agora presence) and pushed to everyone in the
+  status. Viewers no longer ask Agora themselves.
+- **Live feed:** reactions / viewers go out as a small `app-livestream-counts` event at most once
+  a second. One hub serialises each event once for all connections.
+- **Still single-instance:** state, the feed and rate limits live in one process. Move them to Redis
+  before running several instances.
+
+Load test (no browsers, no Agora):
+
+```bash
+# a production build with a live stream (start one at /host), then:
+BASE=http://localhost:5173 VIEWERS=3000 SITE_VISITORS=3000 REACTORS=500 SECONDS=30 RAMP_SECONDS=15 \
+  TICKET_SECRET=<LIVESTREAM_VIEWER_TICKET_SECRET> npm run load
+```
+
+Run the load generator from a different machine than the server for real numbers. On one laptop,
+the OS connection queue (macOS `somaxconn` 128) and the generator itself become the bottleneck
+before the app does.
+

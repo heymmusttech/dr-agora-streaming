@@ -18,7 +18,8 @@
  *
  * Wire format (JSON strings, `v: 1`):
  *   { t: 'chat', id, name, text }          viewer / host
- *   { t: 'react', kind }                   viewer / host (animation only)
+ *   { t: 'reacts', counts }                viewer / host: last second's taps (animation only)
+ *   { t: 'react', kind }                   older clients: one tap (still understood)
  *   { t: 'delete', id }                    host
  *   { t: 'mute', userId, muted }           host
  */
@@ -35,6 +36,8 @@ import {
 } from './types'
 
 /** `conn`: this connection's tag; the token's RTM id is `{identity}~{conn}` (see `ids.ts`). */
+export type ReactionCounts = Partial<Record<ReactionKind, number>>
+
 export type RtmTokenProvider = (conn: string) => Promise<RtmTokenResponse>
 
 export type ChatStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error'
@@ -72,11 +75,21 @@ export interface ChatOptions {
   persist?: (snapshot: Omit<SessionSnapshot, 'updatedAt' | 'sessionId'>) => Promise<unknown>
   /** Every reaction seen (own included), for the floating animation. */
   onReaction?: (kind: ReactionKind) => void
-  /** Counts this client's reaction on the server (the only counter). */
-  sendReaction?: (kind: ReactionKind) => Promise<unknown>
+  /** Counts this client's reactions on the server (the only counter): one batch per second. */
+  sendReaction?: (counts: ReactionCounts) => Promise<unknown>
+  /** Host clients only: the leader reports how many people watch (shared with every viewer). */
+  reportViewers?: (count: number) => Promise<unknown>
 }
 
 const PRESENCE_MS = 5_000
+/**
+ * Taps are sent once a second as one batch — one request and one chat message per person per
+ * second at most, instead of one per tap (with thousands of viewers, per-tap messages would be
+ * millions of deliveries per second through Agora).
+ */
+const REACT_FLUSH_MS = 1_000
+/** Floating reactions drawn per received batch (the counts are exact either way). */
+const MAX_PARTICLES_PER_BATCH = 6
 const PERSIST_MS = 2_000
 const SEND_REACT_LIMIT = 5 // per second, client-side — the same cap the server counts, so a shown click is a counted one
 
@@ -111,6 +124,9 @@ export class LiveChatSession {
   private persistTimer: ReturnType<typeof setInterval> | null = null
   private snapshotDirty = false
   private sentReacts: number[] = []
+  private pendingReacts: ReactionCounts = {}
+  private reactTimer: ReturnType<typeof setTimeout> | null = null
+  private particleTimers = new Set<ReturnType<typeof setTimeout>>()
   private onlineHosts: string[] = []
   /** Logged in and subscribed: only then may link-state changes report `connected`. */
   private ready = false
@@ -141,6 +157,7 @@ export class LiveChatSession {
     this.set({ status: 'connecting', error: null })
     // History doesn't wait for RTM: a slow login must not leave a late joiner with an empty chat.
     void this.loadSnapshot()
+    let client: RTMClient | null = null
     try {
       const [AgoraRTM, token] = await Promise.all([loadRtm(), this.getToken(this.conn)])
       await lastLogout
@@ -149,7 +166,7 @@ export class LiveChatSession {
       this.connId = token.userId
       // The SDK's own logs go to console.error (Next's dev overlay shows them as errors). Our code
       // reports real failures itself ('[rtm] …'), so keep the SDK quiet.
-      const client = new AgoraRTM.RTM(token.appId, token.userId, { logLevel: 'none', presenceTimeout: 10 })
+      client = new AgoraRTM.RTM(token.appId, token.userId, { logLevel: 'none', presenceTimeout: 10 })
       this.client = client
       client.addEventListener('message', (event) => {
         if (event.channelName !== this.channel || typeof event.message !== 'string') return
@@ -181,10 +198,18 @@ export class LiveChatSession {
         me: { userId: identityOf(token.userId), name: token.name, canPost: canPost(token.userId), isHost: isHostId(token.userId) },
       })
       await this.loadSnapshot()
-      void this.refreshPresence()
-      this.presenceTimer = setInterval(() => void this.refreshPresence(), PRESENCE_MS)
+      // Only hosts ask Agora who is online (leader election + the viewer count everyone sees);
+      // viewers get the count from the status instead of each polling Agora.
+      if (this.options.persist) {
+        void this.refreshPresence()
+        this.presenceTimer = setInterval(() => void this.refreshPresence(), PRESENCE_MS)
+      }
       if (this.options.persist) this.persistTimer = setInterval(() => void this.flushSnapshot(), PERSIST_MS)
     } catch (error) {
+      // Stopped (or restarted, e.g. the viewer ticket arrived) while signing in: logout cancels the
+      // pending login (RTM -10023 "canceled by user"). Not a failure, and the new attempt — if any —
+      // owns the connection now, so leave it alone.
+      if (this.stopped || (client && this.client !== client)) return
       console.error('[rtm] chat failed to connect', error)
       this.set({ status: 'error', error: error instanceof Error ? error.message : String(error) })
       await this.leave()
@@ -239,10 +264,15 @@ export class LiveChatSession {
       // People, not connections: one person in two tabs counts once.
       const ids = result.occupants.map((occupant) => identityOf(occupant.userId))
       this.onlineHosts = ids.filter(isHostId).sort()
-      // Count people, not connections, and only ours (the channel is the session's own anyway).
-      const viewers = new Set(ids.filter(isViewer)).size
+      // People, not connections, when the list is complete; past one page of occupants, Agora's
+      // total (connections) minus the hosts is the honest number.
+      const complete = ids.length >= result.totalOccupancy
+      const viewers = complete
+        ? new Set(ids.filter(isViewer)).size
+        : Math.max(0, result.totalOccupancy - result.occupants.filter((o) => isHostId(o.userId)).length)
       if (viewers !== this.state.viewers || !this.state.viewersKnown) this.set({ viewers, viewersKnown: true })
       this.electLeader()
+      if (this.state.leader) void this.options.reportViewers?.(viewers)?.catch(() => undefined)
     } catch {
       // Presence can lag right after subscribing; the next tick retries.
     }
@@ -283,6 +313,17 @@ export class LiveChatSession {
         const kind = data.kind as ReactionKind
         if (!canPost(publisher) || muted || !REACTIONS.includes(kind)) return
         this.options.onReaction?.(kind)
+        return
+      }
+      case 'reacts': {
+        if (!canPost(publisher) || muted || !data.counts || typeof data.counts !== 'object') return
+        const kinds: ReactionKind[] = []
+        for (const kind of REACTIONS) {
+          const n = (data.counts as Record<string, unknown>)[kind]
+          const count = typeof n === 'number' && Number.isFinite(n) ? Math.min(Math.floor(n), MAX_PARTICLES_PER_BATCH) : 0
+          for (let i = 0; i < count && kinds.length < MAX_PARTICLES_PER_BATCH; i++) kinds.push(kind)
+        }
+        this.playBatch(kinds)
         return
       }
       case 'delete': {
@@ -366,10 +407,42 @@ export class LiveChatSession {
     if (this.sentReacts.length >= SEND_REACT_LIMIT) return false
     this.sentReacts.push(now)
     this.options.onReaction?.(kind)
-    // Counted by the server (totals come back with the status); RTM only animates it for others.
-    void this.options.sendReaction?.(kind)?.catch(() => undefined)
-    void this.publish({ t: 'react', kind })
+    // Batched: the server counts it, RTM animates it for others — both once a second.
+    this.pendingReacts[kind] = (this.pendingReacts[kind] ?? 0) + 1
+    this.reactTimer ??= setTimeout(() => this.flushReacts(), REACT_FLUSH_MS)
     return true
+  }
+
+  /**
+   * A batch is one second of someone's taps. Drawn all at once, its reactions would rise side by
+   * side in lockstep; spread over that second (kinds mixed, a little jitter) they look like the taps.
+   */
+  private playBatch(kinds: ReactionKind[]) {
+    if (!kinds.length) return
+    for (let i = kinds.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      const swap = kinds[i]!
+      kinds[i] = kinds[j]!
+      kinds[j] = swap
+    }
+    const step = REACT_FLUSH_MS / kinds.length
+    kinds.forEach((kind, i) => {
+      const delay = Math.max(0, i * step + (Math.random() - 0.5) * step * 0.6)
+      const timer = setTimeout(() => {
+        this.particleTimers.delete(timer)
+        if (!this.stopped) this.options.onReaction?.(kind)
+      }, delay)
+      this.particleTimers.add(timer)
+    })
+  }
+
+  private flushReacts() {
+    this.reactTimer = null
+    const counts = this.pendingReacts
+    this.pendingReacts = {}
+    if (!Object.keys(counts).length) return
+    void this.options.sendReaction?.(counts)?.catch(() => undefined)
+    void this.publish({ t: 'reacts', counts })
   }
 
   /** Host: removes a message for everyone. */
@@ -412,6 +485,13 @@ export class LiveChatSession {
     this.ready = false
     for (const timer of [this.presenceTimer, this.persistTimer]) if (timer) clearInterval(timer)
     this.presenceTimer = this.persistTimer = null
+    this.particleTimers.forEach(clearTimeout)
+    this.particleTimers.clear()
+    // Taps from the last second still count.
+    if (this.reactTimer) {
+      clearTimeout(this.reactTimer)
+      this.flushReacts()
+    }
     await this.flushSnapshot().catch(() => undefined)
     await this.leave()
     this.set({ ...INITIAL_CHAT })

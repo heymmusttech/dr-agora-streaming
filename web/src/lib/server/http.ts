@@ -53,5 +53,22 @@ export function rateLimited(key: string, limit: number, windowMs: number): boole
   return current.count > limit
 }
 
+/**
+ * Up to `limit` units per window per key; returns how many of the `want` units fit (0…want). Lets a
+ * batch (`{ love: 3, like: 2 }`) count partly instead of all-or-nothing.
+ */
+export function takeQuota(key: string, want: number, limit: number, windowMs: number): number {
+  const now = Date.now()
+  if (windows.size > 10_000) windows.forEach((w, k) => w.reset < now && windows.delete(k))
+  let current = windows.get(key)
+  if (!current || current.reset < now) {
+    current = { count: 0, reset: now + windowMs }
+    windows.set(key, current)
+  }
+  const granted = Math.max(0, Math.min(want, limit - current.count))
+  current.count += granted
+  return granted
+}
+
 export const clientIp = (request: Request): string =>
   request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'local'

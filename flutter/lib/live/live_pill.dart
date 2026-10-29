@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 
 import 'live_player_screen.dart';
 
-/// The LIVE pill (same pattern as the web plugin): `● LIVE · title — [▶ Join live] [✕]`.
-/// ✕ hides it for this stream session only.
+/// The LIVE pill (same pattern as the web plugin): `● LIVE · title — [▶ Join live]`.
+/// No close button: it stays while the stream is live.
 class LivePill extends StatelessWidget {
-  const LivePill({super.key, required this.title, required this.onJoin, required this.onDismiss});
+  const LivePill({super.key, required this.title, required this.onJoin});
 
   final String? title;
   final VoidCallback onJoin;
-  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -44,12 +43,6 @@ class LivePill extends StatelessWidget {
               ),
               icon: const Icon(Icons.play_arrow_rounded, size: 18),
               label: const Text('Join live'),
-            ),
-            IconButton(
-              tooltip: 'Hide the live stream for this session',
-              onPressed: onDismiss,
-              icon: const Icon(Icons.close, color: Colors.white70, size: 18),
-              visualDensity: VisualDensity.compact,
             ),
           ],
         ),
