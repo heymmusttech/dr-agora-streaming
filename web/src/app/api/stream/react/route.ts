@@ -1,5 +1,7 @@
 /**
- * POST /api/stream/react `{ kind, ticket? }` — counts one reaction (love / like / smile).
+ * POST /api/stream/react — counts reactions (love / like / smile):
+ *   `{ kind, ticket? }`              one tap
+ *   `{ counts: { love: 3 }, ticket? }` a device's batch for the last second (what the player sends)
  *
  * The server is the only counter, so every screen shows the same, real totals (they reach
  * everyone with the status feed). Who may react: a signed-in viewer (valid viewer ticket) or a
@@ -7,9 +9,9 @@
  */
 import { verifyViewerTicket, viewerRtmId } from '@/lib/auth/viewer-ticket'
 import { hostAuthBypassed, requireHost } from '@/lib/server/host-auth'
-import { clientIp, corsHeaders, errorResponse, json, rateLimited } from '@/lib/server/http'
+import { clientIp, corsHeaders, errorResponse, json, rateLimited, takeQuota } from '@/lib/server/http'
 import { hostRtmId } from '@/lib/stream/ids'
-import { addReaction } from '@/lib/stream/state'
+import { addReactions } from '@/lib/stream/state'
 import { REACTIONS, type ReactionKind } from '@/lib/stream/types'
 
 export const dynamic = 'force-dynamic'
@@ -24,16 +26,29 @@ async function reactorId(request: Request, ticket: unknown): Promise<string | nu
 export async function POST(request: Request) {
   const headers = corsHeaders(request, 'POST, OPTIONS')
   try {
-    if (rateLimited(`react-ip:${clientIp(request)}`, 60, 1_000))
+    if (rateLimited(`react-ip:${clientIp(request)}`, 600, 1_000) /* abuse guard; a venue shares one IP */)
       return json({ error: 'Too many reactions.', code: 'RATE_LIMITED' }, { status: 429, headers })
-    const body = (await request.json().catch(() => ({}))) as { kind?: string; ticket?: unknown }
-    const kind = body.kind as ReactionKind
-    if (!REACTIONS.includes(kind)) return json({ error: 'Unknown reaction.', code: 'REACTION_INVALID' }, { status: 422, headers })
+    const body = (await request.json().catch(() => ({}))) as { kind?: string; counts?: unknown; ticket?: unknown }
+    const wanted: Partial<Record<ReactionKind, number>> = {}
+    if (body.counts && typeof body.counts === 'object') {
+      for (const kind of REACTIONS) {
+        const n = (body.counts as Record<string, unknown>)[kind]
+        if (typeof n === 'number' && Number.isFinite(n) && n > 0) wanted[kind] = Math.min(50, Math.floor(n))
+      }
+    } else if (REACTIONS.includes(body.kind as ReactionKind)) wanted[body.kind as ReactionKind] = 1
+    if (!Object.keys(wanted).length) return json({ error: 'Unknown reaction.', code: 'REACTION_INVALID' }, { status: 422, headers })
     const who = await reactorId(request, body.ticket)
     if (!who) return json({ error: 'Sign in to react.', code: 'REACTION_SIGN_IN' }, { status: 401, headers })
-    // Capped per person: a held-down button can't inflate the totals.
-    if (rateLimited(`react:${who}`, 5, 1_000)) return json({ counted: false }, { headers })
-    return json({ counted: true, totals: addReaction(kind) }, { headers })
+    // Capped per person (5 per second, all kinds together): a held-down button can't inflate totals.
+    const granted: Partial<Record<ReactionKind, number>> = {}
+    let total = 0
+    for (const kind of REACTIONS) {
+      const n = wanted[kind] ? takeQuota(`react:${who}`, wanted[kind]!, 5, 1_000) : 0
+      if (n) granted[kind] = n
+      total += n
+    }
+    if (!total) return json({ counted: false }, { headers })
+    return json({ counted: true, granted, totals: addReactions(granted) }, { headers })
   } catch (error) {
     return errorResponse(error, headers)
   }

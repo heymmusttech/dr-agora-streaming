@@ -11,7 +11,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "e2e": "node e2e/run.mjs"
+    "e2e": "node e2e/run.mjs",
+    "load": "node e2e/load.mjs"
   },
   "dependencies": {
     "@radix-ui/react-select": "2.2.6",

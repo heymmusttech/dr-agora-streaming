@@ -24,7 +24,6 @@ class _GarageAppState extends State<GarageApp> with WidgetsBindingObserver {
   final AppAuth _auth = AppAuth();
   late final LiveStatusController _status = widget.status ?? LiveStatusController();
   final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
-  String? _dismissedSession;
 
   @override
   void initState() {
@@ -79,7 +78,7 @@ class _GarageAppState extends State<GarageApp> with WidgetsBindingObserver {
         builder: (context, _) {
           final status = _status.status;
           final user = _auth.user;
-          final showPill = status.isLive && status.sessionId != _dismissedSession;
+          final showPill = status.isLive;
           return Scaffold(
             appBar: AppBar(
               title: const Text('dR Garage'),
@@ -113,7 +112,6 @@ class _GarageAppState extends State<GarageApp> with WidgetsBindingObserver {
                         child: LivePill(
                           title: status.title,
                           onJoin: () => _join(status.title),
-                          onDismiss: () => setState(() => _dismissedSession = status.sessionId),
                         ),
                       ),
                     ),

@@ -5,11 +5,10 @@ CSS can't break it and its CSS can't leak out.
 
 | State | What the visitor sees |
 |---|---|
-| Stream live, not joined | LIVE pill: `● LIVE · title — [▶ Join live] [✕]` |
+| Stream live, not joined | LIVE pill: `● LIVE · title — [▶ Join live]` (no close button: it stays while the stream is live) |
 | Joined | Floating player (the iframe `/embed/live?ui=dock`). Phones get a bottom sheet. The bar holds LIVE, title, minimise, expand and close; viewers and reactions sit in one row above the chat. Nothing is shown twice. |
 | Expanded | The same dock, larger in the page: `[stream][chat]` side by side. |
-| Minimised | `● LIVE — Back to stream` (audio keeps playing) |
-| ✕ pressed | Hidden until the next session |
+| Minimised | `● LIVE — Back to stream [✕]` (audio keeps playing; ✕ closes the player, back to the pill) |
 
 **Nothing connects to the video before Join.** Until then, the plugin only polls
 `GET {origin}/api/stream/status` every 5 s.
@@ -52,7 +51,7 @@ Put data attributes on the script tag:
 | `onLoginRequest` | — | Called when a guest presses Sign in, a reaction, or the chat box. Open your site's login here. |
 | `position` | `'bottom-left'` | or `'bottom-right'` |
 | `autoOpen` | `false` | Open the player as soon as a stream is live (otherwise the pill shows) |
-| `pollMs` | `5000` | Status poll interval (min 2000) |
+| `pollMs` | `5000` | Status poll interval while a stream is live (min 2000). With nothing live the plugin polls every 10 s. The status is CDN-cacheable for 2 s. |
 | `container` | `document.body` | Where the widget element is appended |
 | `headless` | `false` | No pill or dock. Use `mountBadge` + `open()` with your own UI. |
 | `theme` | `'auto'` | `auto` follows the host page's light / dark theme live; `light` / `dark` force one. Also available as `data-theme` on the script tag. |

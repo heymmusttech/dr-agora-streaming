@@ -7,15 +7,25 @@
  * for several instances put Redis pub/sub behind the same functions.
  */
 import 'server-only'
-import type { AppLiveStreamStatus } from './types'
+import type { AppLiveStreamStatus, LiveCounts } from './types'
 
 type StatusListener = (status: AppLiveStreamStatus) => void
 type HostsListener = () => void
+type CountsListener = (counts: LiveCounts) => void
 
 const store = globalThis as typeof globalThis & {
-  __dprLiveBus?: { status: Set<StatusListener>; hosts: Set<HostsListener> }
+  __dprLiveBus?: { status: Set<StatusListener>; hosts: Set<HostsListener>; counts?: Set<CountsListener> }
 }
 const bus = (store.__dprLiveBus ??= { status: new Set(), hosts: new Set() })
+const counts = (bus.counts ??= new Set())
+
+/** Reactions / viewers changed: a ~100-byte event instead of the whole status. */
+export const emitCounts = (value: LiveCounts): void => each(counts, value)
+
+export function subscribeCounts(listener: CountsListener): () => void {
+  counts.add(listener)
+  return () => counts.delete(listener)
+}
 
 function each<T>(listeners: Set<(value: T) => void>, value: T) {
   listeners.forEach((listener) => {

@@ -24,7 +24,14 @@ import { useBroadcast } from '@/components/stream/BroadcastPanel'
 import { useElapsed } from '@/hooks/useElapsed'
 import { useLiveChat } from '@/hooks/useLiveChat'
 import { useAppLiveStream, useLiveStreamFeedStatus } from '@/hooks/useLiveStreams'
-import { fetchHostRtmToken, saveSessionSnapshot, sendHostReaction, startLiveStream, stopLiveStream } from '@/lib/stream/host-api'
+import {
+  fetchHostRtmToken,
+  reportViewerCount,
+  saveSessionSnapshot,
+  sendHostReaction,
+  startLiveStream,
+  stopLiveStream,
+} from '@/lib/stream/host-api'
 import { hostRtmId } from '@/lib/stream/ids'
 import type { AppLiveStreamStatus, HostRole, LiveStreamHostMode } from '@/lib/stream/types'
 import { cn } from '@/lib/utils'
@@ -63,6 +70,7 @@ export function LiveStreamControlView({ initial, agoraConfigured }: { initial: A
     adminUserId: status.startedBy ? hostRtmId(status.startedBy.sub) : null,
     persist: saveSessionSnapshot,
     sendReaction: sendHostReaction,
+    reportViewers: reportViewerCount,
   })
 
   // Co-host tiles on the stage carry the host's name.

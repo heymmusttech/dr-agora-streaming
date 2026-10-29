@@ -6,7 +6,7 @@ like the plugin on drlive-frontend:
 | Web (drlive-frontend) | This app |
 |---|---|
 | `dpr-live.js` polls `/api/stream/status` | `LiveStatusController` polls the same endpoint (every 5 s, foreground only) |
-| LIVE pill · Join live · ✕ (hidden for the session) | `LivePill`, same pattern and colours |
+| LIVE pill · Join live (no close button) | `LivePill`, same pattern and colours |
 | Join → dock iframe `/embed/live?ui=dock` | Join → `LivePlayerScreen`, a WebView of `/embed/live?platform=garage&ui=dock` |
 | postMessage bridge | `DprLiveNative` JS channel ⇄ `window.DprLive.setViewer(ticket)` |
 | `onLoginRequest` → `openSignInModal()` | `LOGIN_REQUEST` → the app's sign-in dialog, then a new ticket |
@@ -51,10 +51,11 @@ flutter test                       # → All tests passed
 ### 3. Run it
 
 ```bash
-flutter devices                    # pick the device id
+flutter devices                    # pick the device name or id
 
-# iOS simulator (start one first: open -a Simulator)
-flutter run -d ios --dart-define=LIVESTREAM_ORIGIN=http://localhost:5173
+# iOS simulator (start one first: open -a Simulator). -d takes the simulator's name or id,
+# not "ios": use the name `flutter devices` prints.
+flutter run -d "iPhone 17 Pro Max" --dart-define=LIVESTREAM_ORIGIN=http://localhost:5173
 
 # Android emulator (the computer is 10.0.2.2 from inside the emulator)
 flutter run -d emulator-5554 --dart-define=LIVESTREAM_ORIGIN=http://10.0.2.2:5173

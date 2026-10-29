@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { HostIdentity } from '@/lib/auth/host-claims'
-import { emitStreamStatus, subscribeHostsChanged } from './bus'
+import { emitCounts, emitStreamStatus, subscribeHostsChanged } from './bus'
 import { chatChannelFor, LIVE_CHANNEL } from './channel'
 import { getOnAir, removeCoHosts, removeHost } from './registry'
 import {
@@ -28,9 +28,11 @@ import {
   normalizeMaxHosts,
   normalizeTitle,
 } from './rules'
+import { REACTIONS } from './types'
 import type {
   AppLiveStreamStatus,
   HostIdentityPublic,
+  LiveCounts,
   ReactionKind,
   HostRole,
   LiveStreamHostMode,
@@ -110,6 +112,8 @@ function save() {
 
 interface Holder extends Persisted {
   unlink?: () => void
+  /** Last viewer count reported by the leading host (not persisted: it is only true right now). */
+  viewers?: { sessionId: string | null; count: number; at: number }
   graceTimer: ReturnType<typeof setTimeout> | null
   handoverUntil: number
 }
@@ -136,6 +140,7 @@ export function getStatus(): AppLiveStreamStatus {
     stopReason: record.isLive ? null : record.stopReason,
     host: getOnAir(),
     reactions: record.isLive && holder.snapshot.sessionId === record.sessionId ? { ...holder.snapshot.totals } : { love: 0, like: 0, smile: 0 },
+    viewers: currentViewers(),
     chatChannel: record.isLive && record.sessionId ? chatChannelFor(record.sessionId) : null,
     serverTime: Date.now(),
   }
@@ -243,29 +248,68 @@ export function saveSnapshot(value: unknown): SessionSnapshot {
   return holder.snapshot
 }
 
-/* ── reactions: counted here, pushed to everyone with the status ── */
+/* ── counts: reactions (counted here) and viewers (reported by the leading host) ── */
 
-const REACTION_EMIT_MS = 400
+/**
+ * At most one counts push per second, however many reactions arrive: with thousands of viewers a
+ * push per tap (or the full status every 0.4 s) would be most of the server's traffic.
+ */
+const COUNTS_EMIT_MS = 1_000
 const REACTION_SAVE_MS = 2_000
-let reactionEmit: ReturnType<typeof setTimeout> | null = null
+/** A viewer count older than this (the host's tab closed) is no longer shown. */
+const VIEWERS_TTL_MS = 30_000
+let countsEmit: ReturnType<typeof setTimeout> | null = null
 let reactionSave: ReturnType<typeof setTimeout> | null = null
 
-/** Counts one reaction for the live session (the caller has authenticated and rate-limited it). */
-export function addReaction(kind: ReactionKind): SessionSnapshot['totals'] {
+function currentViewers(): number | null {
+  const v = holder.viewers
+  const { record } = holder
+  if (!record.isLive || !v || v.sessionId !== record.sessionId || Date.now() - v.at > VIEWERS_TTL_MS) return null
+  return v.count
+}
+
+export function getCounts(): LiveCounts {
+  const status = getStatus()
+  return { sessionId: status.sessionId, reactions: status.reactions, viewers: status.viewers, serverTime: status.serverTime }
+}
+
+function scheduleCounts() {
+  countsEmit ??= setTimeout(() => {
+    countsEmit = null
+    emitCounts(getCounts())
+  }, COUNTS_EMIT_MS)
+}
+
+/**
+ * Counts reactions for the live session — one tap, or a device's batch for the last second
+ * (`{ love: 3 }`). The caller has authenticated and capped them.
+ */
+export function addReactions(add: Partial<Record<ReactionKind, number>>): SessionSnapshot['totals'] {
   const { record } = holder
   if (!record.isLive) throw new StreamInputError('The stream is not live.', 'LIVESTREAM_OFFLINE', 409)
   if (holder.snapshot.sessionId !== record.sessionId) holder.snapshot = emptySnapshot(record.sessionId)
-  holder.snapshot = { ...holder.snapshot, totals: { ...holder.snapshot.totals, [kind]: holder.snapshot.totals[kind] + 1 } }
-  // Batched: a burst of taps becomes one status push and one disk write.
-  reactionEmit ??= setTimeout(() => {
-    reactionEmit = null
-    emitStreamStatus(getStatus())
-  }, REACTION_EMIT_MS)
+  const totals = { ...holder.snapshot.totals }
+  for (const kind of REACTIONS) totals[kind] += Math.max(0, Math.floor(add[kind] ?? 0))
+  holder.snapshot = { ...holder.snapshot, totals }
+  scheduleCounts()
   reactionSave ??= setTimeout(() => {
     reactionSave = null
     save()
   }, REACTION_SAVE_MS)
   return holder.snapshot.totals
+}
+
+export const addReaction = (kind: ReactionKind) => addReactions({ [kind]: 1 })
+
+/** The leading host's measurement of people watching (from Agora presence). */
+export function setViewerCount(count: number): number | null {
+  const { record } = holder
+  if (!record.isLive) throw new StreamInputError('The stream is not live.', 'LIVESTREAM_OFFLINE', 409)
+  const clean = Math.max(0, Math.min(10_000_000, Math.floor(count)))
+  const changed = currentViewers() !== clean
+  holder.viewers = { sessionId: record.sessionId, count: clean, at: Date.now() }
+  if (changed) scheduleCounts()
+  return clean
 }
 
 /* ── admin ⇄ stream link ── */

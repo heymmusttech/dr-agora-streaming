@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
-    if (rateLimited(`viewer-token:${clientIp(request)}`, 120, 60_000))
+    if (rateLimited(`viewer-token:${clientIp(request)}`, 1_200, 60_000) /* a venue / office shares one IP */)
       return json({ error: 'Too many token requests.', code: 'RATE_LIMITED' }, { status: 429 })
     const body = (await request.json().catch(() => ({}))) as { ticket?: unknown; rtcOnly?: boolean; conn?: unknown }
     const viewer = body.ticket ? await verifyViewerTicket(body.ticket) : null

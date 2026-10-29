@@ -20,14 +20,12 @@ void main() {
     expect(find.text('Join live'), findsNothing);
   });
 
-  testWidgets('live: the pill shows the title; ✕ hides it for the session', (tester) async {
+  testWidgets('live: the pill shows the title and Join live, no close button', (tester) async {
     await tester.pumpWidget(GarageApp(status: statusFrom({'isLive': true, 'title': 'Sunday cars', 'sessionId': 's1'})));
     await tester.pumpAndSettle();
     expect(find.text('Sunday cars'), findsOneWidget);
     expect(find.text('Join live'), findsOneWidget);
-    await tester.tap(find.byTooltip('Hide the live stream for this session'));
-    await tester.pumpAndSettle();
-    expect(find.text('Join live'), findsNothing);
+    expect(find.byIcon(Icons.close), findsNothing);
   });
 
   testWidgets('sign in / sign out from the app bar', (tester) async {

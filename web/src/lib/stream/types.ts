@@ -116,11 +116,25 @@ export interface AppLiveStreamStatus {
    */
   reactions: ReactionTotals
   /**
+   * People watching, as measured by the leading host's chat client and reported to the server
+   * (`POST /api/stream/viewers`) — one measurement for everyone instead of every viewer asking
+   * Agora. Null while offline or before the first report.
+   */
+  viewers: number | null
+  /**
    * The session's private RTM channel (chat, reactions, viewer presence) — never shared with other
    * apps on the same Agora project or with earlier sessions. Null while offline.
    */
   chatChannel: string | null
   /** ms */
+  serverTime: number
+}
+
+/** The small, frequent part of the status (reactions, viewers), pushed at most once a second. */
+export interface LiveCounts {
+  sessionId: string | null
+  reactions: ReactionTotals
+  viewers: number | null
   serverTime: number
 }
 
