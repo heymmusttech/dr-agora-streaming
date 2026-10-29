@@ -1,0 +1,566 @@
+/*
+ * Ported from drlive-frontend:
+ * - tokens: `src/app/(frontend)/themes/auction.css` (the full auction skin, applied to :root here)
+ * - base typography: `src/app/(frontend)/globals.css` @layer base
+ * - `.live-reveal-icon`: `globals.css` live button radar sweep (used by the LIVE badge)
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius: 0.75rem;
+  /* Surfaces */
+  --surface: 0 0% 98%;
+  --surface-1: 0 0% 96%;
+  --surface-2: 0 0% 93%;
+  --surface-3: 0 0% 91%;
+  --surface-4: 0 0% 91%;
+  --surface-5: 0 0% 89%;
+  --surface-1-85: 0 0% 96%;
+  --surface-container: 0 0% 95%;
+
+  /* Primary (auction crimson) */
+  /* --primary: 347 87% 41%;
+  --on-primary: 0 0% 100%;
+  --primary-container: 347 70% 28%;
+  --on-primary-container: 0 0% 100%; */
+  --primary: 0 0% 0%;
+  --on-primary: 0 0% 100%;
+  --primary-container: 0 0% 85%;
+  --on-primary-container: 0 0% 15%;
+
+  /* Secondary (auction red accent) */
+  --secondary: 347 100% 33.1%;
+  --on-secondary: 0 0% 100%;
+  --secondary-container: 347 100% 40%;
+  --on-secondary-container: 0 0% 100%;
+  --secondary-alt: 347 100% 36%;
+  --on-secondary-alt: 0 0% 100%;
+  --secondary-container-alt: 347 100% 90%;
+  --on-secondary-container-alt: 347 60% 20%;
+
+  /* Tertiary */
+  --tertiary: 152 96% 27%;
+  --on-tertiary: 0 0% 100%;
+  --tertiary-container: 152 95% 39%;
+  --on-tertiary-container: 0 0% 100%;
+
+  /*
+   * Error — the brand's crimson, not a pure red. Anything that warns or destroys sits in the same
+   * family as the rest of the site (`--dr-live-container` is 347 87% 41%), so a delete button and
+   * a validation message read as duPont REGISTRY Live rather than as a browser alert.
+   */
+  --error: 347 87% 41%; /* #C10E34 */
+  --on-error: 0 0% 100%;
+  --error-container: 347 80% 52%; /* #E32552 */
+  --on-error-container: 0 0% 100%;
+
+  /* Background & Foreground */
+  --background: 0 0% 100%;
+  --on-background: 0 0% 0%;
+  --foreground: 0 0% 0%;
+
+  /* Outline & Borders */
+  --outline: 0 0% 50%;
+  --outline-variant: 240 4% 78%;
+  --border-alt: 0 0% 60%;
+
+  /* Surface Variants */
+  --surface-variant: 240 10.33% 88.63%;
+  --on-surface: 0 0% 5%;
+  --on-surface-variant: 240 1% 27%;
+  --surface-variant-custom: 240 5% 84%;
+
+  /* Inverse */
+  --inverse-surface: 0 1% 19%;
+  --inverse-on-surface: 0 0% 95%;
+  --inverse-primary: 0 0% 80%;
+
+  /* Scrim */
+  --scrim: rgba(0, 0, 0, 0.4);
+  --scrim-variant-90: rgba(255, 255, 255, 0.9);
+  --scrim-variant-75: rgba(255, 255, 255, 0.75);
+
+  /* Support colours */
+  --support-orange: 31 91% 45%;
+  --on-support-orange: 0 0% 100%;
+  --support-orange-container: 31 88% 57%;
+  --on-support-orange-container: 0 0% 100%;
+  --support-teal: 190 90% 45%;
+  --on-support-teal: 0 0% 100%;
+  --support-teal-container: 190 100% 63%;
+  --on-support-teal-container: 0 0% 100%;
+
+  --gold: 44 45% 47%;
+
+  --calendar-icon-filter: none;
+
+  /* Overlay / Live Auction banner — Exactly #C10E34 / #7A0822 / #E4002B */
+  --auction-live: 347.26 86.47% 40.59%;
+  --auction-live-deep: 346.32 87.69% 25.49%;
+  --auction-live-accent: 348.68 100% 44.71%;
+  --auction-glow: 346 85.71% 27.45%;
+  --auction-glow-deep: 345.71 87.5% 18.82%;
+  --auction-on-live: 0 0% 100%;
+
+  /* Auction color tokens */
+  --dr-live-container: 347.2 86% 40.6%; /* #C10E34 */
+  --dr-live-container-hover: 347 86% 34%; /* #A00C2B */
+  --dr-live-container-glow: 347 87% 28%; /* #8F0924 */
+  --dr-live: 347 100% 33.1%; /* #A90025 */
+  --auction-draft: 0 0% 30%; /* #4D4D4D */
+  --auction-draft-hover: 0 0% 24%; /* #3D3D3D */
+  --auction-scheduled: 30 91% 45%; /* #D9720B */
+  --auction-scheduled-hover: 30 91% 37%; /* #B85E09 */
+  --auction-closed: 152 96% 39%; /* #04C46E */
+  --auction-closed-hover: 152 96% 32%; /* #03A35B */
+  --auction-deleted: 0 100% 74%; /* #FF7E7E */
+  --auction-deleted-hover: 0 100% 70%; /* #FF6565 */
+  --auction-deleted-fg: 347 87% 25%; /* #780B21 */
+  --auction-reopened: 152 98% 23%; /* #017340 */
+  --auction-reopened-hover: 152 98% 19%; /* #015F35 */
+  --auction-picker: 225 7% 11%; /* #1A1B1E */
+  /* Preview: the one status that is neither waiting nor running — the editors' own view. */
+  --auction-preview: 217 79% 45%; /* #1862CF */
+  /* Taking bids right now — the one state an editor scans for. */
+  --auction-running: 152 92% 26%; /* #05803F — readable on a light row */
+
+  /* Sidebar */
+  --sidebar-background: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--secondary);
+  --sidebar-primary-foreground: var(--background);
+  --sidebar-accent: var(--surface-2);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--outline-variant);
+  --sidebar-ring: var(--secondary);
+}
+
+:root[data-theme='dark'] {
+  /* Surfaces */
+  --surface: 0 0% 5%;
+  --surface-1: 0 0% 8%;
+  --surface-2: 0 0% 11%;
+  --surface-3: 0 0% 13%;
+  --surface-4: 0 0% 14%;
+  --surface-5: 0 0% 17%;
+  --surface-1-85: 0 0% 22%;
+  --surface-container: 0 0% 15%;
+
+  /* Primary (auction crimson) */
+  /* --primary: 347 87% 41%;
+  --on-primary: 0 0% 100%;
+  --primary-container: 347 70% 20%;
+  --on-primary-container: 0 0% 100%; */
+
+  --primary: 0 0% 85%;
+  --on-primary: 0 0% 15%;
+  --primary-container: 0 0% 30%;
+  --on-primary-container: 0 0% 90%;
+
+  /* Secondary (auction red accent) */
+  --secondary: 354 100% 70%;
+  --on-secondary: 347 60% 15%;
+  --secondary-container: 354 90% 45%;
+  --on-secondary-container: 347 60% 15%;
+  --secondary-alt: 354 100% 74%;
+  --on-secondary-alt: 347 60% 12%;
+  --secondary-container-alt: 354 80% 25%;
+  --on-secondary-container-alt: 354 100% 90%;
+
+  /* Tertiary */
+  --tertiary: 152 95% 39%;
+  --on-tertiary: 152 100% 11%;
+  --tertiary-container: 152 97% 23%;
+  --on-tertiary-container: 0 0% 100%;
+
+  /* Error — the Add Listing red, the same on a dark row as on a light one. */
+  --error: 347 87% 41%; /* #C10E34 */
+  --on-error: 347 100% 20%; /* #660014 */
+  --error-container: 347 87% 41%; /* #C10E34 */
+  --on-error-container: 0 0% 100%;
+
+  /* Background & Foreground */
+  --background: 0 0% 0%;
+  --on-background: 0 0% 100%;
+  --foreground: 0 0% 100%;
+
+  /* Outline & Borders */
+  --outline: 0 0% 60%;
+  --outline-variant: 240 2% 37%;
+  --border-alt: 240 1% 37%;
+
+  /* Surface Variants */
+  --surface-variant: 240 1.42% 27.85%;
+  --on-surface: 0 0% 95%;
+  --on-surface-variant: 240 4% 78%;
+  --surface-variant-custom: 240 2% 19%;
+
+  /* Inverse */
+  --inverse-surface: 0 0% 90%;
+  --inverse-on-surface: 0 0% 20%;
+  --inverse-primary: 0 0% 40%;
+
+  /* Scrim */
+  --scrim: rgba(0, 0, 0, 0.6);
+  --scrim-variant-90: rgba(0, 0, 0, 0.9);
+  --scrim-variant-75: rgba(0, 0, 0, 0.75);
+
+  /* Support colours */
+  --support-orange: 31 100% 67%;
+  --on-support-orange: 31 100% 21%;
+  --support-orange-container: 31 91% 45%;
+  --on-support-orange-container: 0 0% 100%;
+  --support-teal: 190 100% 67%;
+  --on-support-teal: 190 100% 21%;
+  --support-teal-container: 190 90% 45%;
+  --on-support-teal-container: 0 0% 100%;
+
+  --gold: 44 45% 47%;
+
+  --calendar-icon-filter: invert(1);
+
+  /* Overlay / Live Auction banner — same reds as light (sits on photography) */
+  --auction-live: 347.26 86.47% 40.59%;
+  --auction-live-deep: 346.32 87.69% 25.49%;
+  --auction-live-accent: 348.68 100% 44.71%;
+  --auction-glow: 346 85.71% 27.45%;
+  --auction-glow-deep: 345.71 87.5% 18.82%;
+  --auction-on-live: 0 0% 100%;
+
+  /* Auction color tokens */
+  --dr-live-container: 347.2 86% 40.6%; /* #C10E34 */
+  --dr-live-container-hover: 347 86% 34%; /* #A00C2B */
+  --dr-live-container-glow: 347 87% 28%; /* #8F0924 */
+  --dr-live: 354 100% 70%; /* #FF6675 */
+  --auction-draft: 0 0% 30%; /* #4D4D4D */
+  --auction-draft-hover: 0 0% 24%; /* #3D3D3D */
+  --auction-scheduled: 30 91% 45%; /* #D9720B */
+  --auction-scheduled-hover: 30 91% 37%; /* #B85E09 */
+  --auction-closed: 152 96% 39%; /* #04C46E */
+  --auction-closed-hover: 152 96% 32%; /* #03A35B */
+  --auction-deleted: 0 100% 74%; /* #FF7E7E */
+  --auction-deleted-hover: 0 100% 70%; /* #FF6565 */
+  --auction-deleted-fg: 347 87% 25%; /* #780B21 */
+  --auction-reopened: 152 98% 23%; /* #017340 */
+  --auction-reopened-hover: 152 98% 19%; /* #015F35 */
+  --auction-picker: 225 7% 11%; /* #1A1B1E */
+  --auction-preview: 213 90% 64%; /* #4F9AF7 */
+  --auction-running: 152 96% 45%; /* #05E081 — bright enough on a dark row */
+
+  /* Sidebar */
+  --sidebar-background: var(--surface-1);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--secondary);
+  --sidebar-primary-foreground: var(--background);
+  --sidebar-accent: var(--surface-3);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--outline-variant);
+  --sidebar-ring: var(--secondary);
+}
+
+@layer base {
+  /* Reset default heading styles and apply our typography system */
+  h1 {
+    font-family: var(--font-manrope), sans-serif;
+    font-weight: 700;
+    font-size: 32px;
+    line-height: 1.2;
+  }
+
+  @media (min-width: 640px) {
+    h1 {
+      font-size: 36px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    h1 {
+      font-size: 44px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    h1 {
+      font-size: 52px;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    h1 {
+      font-size: 56px;
+    }
+  }
+
+  @media (min-width: 1536px) {
+    h1 {
+      font-size: 60px;
+    }
+  }
+
+  h2 {
+    font-family: var(--font-manrope), sans-serif;
+    font-weight: 700;
+    font-size: 24px;
+    line-height: 1.2;
+  }
+
+  @media (min-width: 640px) {
+    h2 {
+      font-size: 28px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    h2 {
+      font-size: 32px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    h2 {
+      font-size: 38px;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    h2 {
+      font-size: 44px;
+    }
+  }
+
+  @media (min-width: 1536px) {
+    h2 {
+      font-size: 48px;
+    }
+  }
+
+  h3 {
+    font-family: var(--font-manrope), sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1.4;
+  }
+
+  @media (min-width: 640px) {
+    h3 {
+      font-size: 18px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    h3 {
+      font-size: 20px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    h3 {
+      font-size: 24px;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    h3 {
+      font-size: 24px;
+    }
+  }
+
+  @media (min-width: 1536px) {
+    h3 {
+      font-size: 24px;
+    }
+  }
+
+  h4 {
+    font-family: var(--font-roboto), sans-serif;
+    font-weight: 400;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  h5,
+  h6 {
+    font-family: var(--font-roboto), sans-serif;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  /* Body copy is split out from h5/h6 so it can breathe: 1.2 is a heading value and left
+     paragraphs cramped, which is why ~20 components had to override it locally. 1.5 matches
+     the h4 rule above. Headings keep 1.2. */
+  p {
+    font-family: var(--font-roboto), sans-serif;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  @media (min-width: 640px) {
+    h4 {
+      font-size: 16px;
+    }
+
+    h5,
+    h6,
+    p {
+      font-size: 14px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    h4 {
+      font-size: 18px;
+    }
+
+    h5,
+    h6,
+    p {
+      font-size: 14px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    h4 {
+      font-size: 18px;
+    }
+
+    h5,
+    h6,
+    p {
+      font-size: 16px;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    h4 {
+      font-size: 18px;
+    }
+
+    h5,
+    h6,
+    p {
+      font-size: 16px;
+    }
+  }
+
+  @media (min-width: 1536px) {
+    h4 {
+      font-size: 18px;
+    }
+
+    h5,
+    h6,
+    p {
+      font-size: 16px;
+    }
+  }
+
+  /* ============================================
+     NEW COLOR SYSTEM - Light Theme (Default)
+     HSL format for Tailwind opacity support
+     ============================================ */
+}
+
+@layer base {
+  * {
+    @apply border-outline-variant;
+    font-family: var(--font-roboto), sans-serif;
+  }
+  body {
+    @apply bg-background text-foreground min-h-[100vh] flex flex-col;
+    font-family: var(--font-roboto), sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  /* Mobile safe area clearance (implementation.md §8.4). */
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+@property --live-reveal-in {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+@property --live-reveal-out {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
+.live-reveal-icon {
+  --live-reveal-in: 0%;
+  --live-reveal-out: 0%;
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent var(--live-reveal-in),
+    #000 var(--live-reveal-in),
+    #000 var(--live-reveal-out),
+    transparent var(--live-reveal-out)
+  );
+  mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent var(--live-reveal-in),
+    #000 var(--live-reveal-in),
+    #000 var(--live-reveal-out),
+    transparent var(--live-reveal-out)
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: live-reveal 2.4s ease-in-out infinite;
+}
+
+@keyframes live-reveal {
+  /* reveal: outer edge grows from center to past the edges */
+  0% {
+    --live-reveal-in: 0%;
+    --live-reveal-out: 0%;
+  }
+  40%,
+  60% {
+    --live-reveal-in: 0%;
+    --live-reveal-out: 110%;
+  }
+  /* fade: inner edge grows from center out, swallowing the icon */
+  100% {
+    --live-reveal-in: 110%;
+    --live-reveal-out: 110%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-reveal-icon {
+    animation: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+/* Floating reactions (port of auction-stream `FloatingReactions`): rise, sway, fade. */
+@keyframes reaction-float {
+  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+  12% { opacity: 1; transform: translate(0, -12%) scale(1.1); }
+  50% { transform: translate(-14px, -55%) scale(1); }
+  100% { transform: translate(10px, -110%) scale(0.9); opacity: 0; }
+}
+.reaction-particle {
+  animation: reaction-float 2.4s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reaction-particle { animation-duration: 1.2s; }
+}

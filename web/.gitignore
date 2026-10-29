@@ -1,0 +1,13 @@
+node_modules
+.next
+.next-*
+out
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
+certificates
+.data
+.data-*
+# built by scripts/build-plugin.mjs
+public/plugin/
+e2e/artifacts/
